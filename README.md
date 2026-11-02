@@ -13,7 +13,7 @@ The shared world includes registered accounts, persistent characters and quests,
 
 ## Public deployment
 
-`render.yaml` describes a single Render web service with a persistent disk for SQLite. Deploy the `GreedWeb` directory as the repository root; the host will create the actual public URL after a successful build. The persistent disk requires a paid service plan on Render. **No public URL is deployed yet** because there is no hosting account/project authorization in this workspace. The SQLite database stays private on the server disk; do not expose it directly to browsers.
+`render.yaml` describes a single Render web service with a persistent disk for SQLite. Deploy this repository root; the host will create the actual public URL after a successful build. The persistent disk requires a paid service plan on Render. **No public URL is deployed yet** because there is no hosting account/project authorization in this workspace. The SQLite database stays private on the server disk; do not expose it directly to browsers.
 
 ### Google sign-in and admin setup
 
