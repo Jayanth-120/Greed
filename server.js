@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS guilds(id INTEGER PRIMARY KEY, name TEXT NOT NULL UNI
 CREATE TABLE IF NOT EXISTS guild_members(guild_id INTEGER NOT NULL REFERENCES guilds(id) ON DELETE CASCADE, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, role TEXT NOT NULL DEFAULT 'member', contribution INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(guild_id,user_id));
 CREATE TABLE IF NOT EXISTS world(id INTEGER PRIMARY KEY CHECK(id=1), turn INTEGER NOT NULL, threat REAL NOT NULL, prosperity REAL NOT NULL, stability REAL NOT NULL, active_event TEXT, event_progress INTEGER NOT NULL, event_need INTEGER NOT NULL, event_turns INTEGER NOT NULL, event_feed TEXT NOT NULL, npcs TEXT NOT NULL, updated_at INTEGER NOT NULL);
 `);
+const characterColumns=new Set(db.prepare('PRAGMA table_info(characters)').all().map(c=>c.name));
+if(!characterColumns.has('pos_x'))db.exec('ALTER TABLE characters ADD COLUMN pos_x INTEGER NOT NULL DEFAULT 8');
+if(!characterColumns.has('pos_y'))db.exec('ALTER TABLE characters ADD COLUMN pos_y INTEGER NOT NULL DEFAULT 6');
 const existingUserColumns=new Set(db.prepare('PRAGMA table_info(users)').all().map(c=>c.name));
 if(!existingUserColumns.has('email'))db.exec('ALTER TABLE users ADD COLUMN email TEXT');
 if(!existingUserColumns.has('google_sub'))db.exec('ALTER TABLE users ADD COLUMN google_sub TEXT');
@@ -199,6 +202,7 @@ function tickWorld(force=true){
 }
 setInterval(()=>{try{tickWorld()}catch(e){console.error('Morpheus tick failed',e)}},15000).unref();
 const loginAttempts=new Map();function throttle(ip){const now=Date.now(),x=loginAttempts.get(ip)||{n:0,t:now};if(now-x.t>60000){x.n=0;x.t=now}x.n++;loginAttempts.set(ip,x);return x.n<=12}
+const movementTimes=new Map();
 const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost');
@@ -230,10 +234,19 @@ const server=http.createServer(async(req,res)=>{
     }
     if(req.method==='GET'&&url.pathname==='/api/state'){
       const c=getCharacter(user.id),w=getWorld();db.prepare('UPDATE characters SET updated_at=? WHERE user_id=?').run(Date.now(),user.id);
-      const players=db.prepare('SELECT name,job,level,location,fame FROM characters WHERE updated_at>? AND user_id<>? ORDER BY level DESC LIMIT 50').all(Date.now()-60000,user.id);
+      const players=db.prepare('SELECT name,job,level,location,fame,pos_x,pos_y FROM characters WHERE updated_at>? AND user_id<>? ORDER BY level DESC LIMIT 50').all(Date.now()-60000,user.id);
       const chat=db.prepare('SELECT username,message,created_at FROM chat WHERE id>(SELECT COALESCE(MAX(id)-25,0) FROM chat) ORDER BY id').all();
       const guild=db.prepare('SELECT g.name,g.level,g.fame,g.gold,gm.role FROM guild_members gm JOIN guilds g ON g.id=gm.guild_id WHERE gm.user_id=?').get(user.id)||null;
       return send(res,200,{user:user.username,isAdmin:Boolean(user.is_admin),character:c,locations,players,quests:getQuests(user.id),world:{turn:w.turn,threat:w.threat,prosperity:w.prosperity,stability:w.stability,event:w.active_event,eventProgress:w.event_progress,eventNeed:w.event_need,eventTurns:w.event_turns,feed:json(w.event_feed,[]),npcs:json(w.npcs,npcSeed)},chat,guild,skills:[...getAbilities(c.job),...getPassives(c.job).map(name=>[name,0,0,'passive'])]});
+    }
+    if(req.method==='POST'&&url.pathname==='/api/move'){
+      const body=await readBody(req),direction=body.direction,steps=body.steps===undefined?1:body.steps,now=Date.now();
+      if(!['up','down','left','right'].includes(direction)||!Number.isInteger(steps)||steps<1||steps>3)return send(res,400,{error:'Choose a direction and 1–3 steps.'});
+      const c=getCharacter(user.id);if(!c)return send(res,404,{error:'Character not found.'});
+      const last=movementTimes.get(user.id)||0;if(now-last<110)return send(res,429,{error:'Moving too quickly.'});movementTimes.set(user.id,now);
+      const delta={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]}[direction],x=Math.max(1,Math.min(15,c.pos_x+delta[0]*steps)),y=Math.max(1,Math.min(11,c.pos_y+delta[1]*steps));
+      db.prepare('UPDATE characters SET pos_x=?,pos_y=?,updated_at=? WHERE user_id=?').run(x,y,now,user.id);
+      return send(res,200,{ok:true,position:{x,y}});
     }
     if(req.method==='POST'&&url.pathname==='/api/action'){
       const body=await readBody(req);db.exec('BEGIN IMMEDIATE');try{const result=processAction(user,body);db.exec('COMMIT');return send(res,200,{ok:true,...result})}catch(e){db.exec('ROLLBACK');return send(res,400,{error:e.message||'Action failed.'})}
