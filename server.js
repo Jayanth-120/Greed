@@ -207,6 +207,7 @@ const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost');
     if(req.method==='GET'&&url.pathname==='/'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache'});return fs.createReadStream(path.join(PUBLIC_DIR,'index.html')).pipe(res)}
+    if(req.method==='GET'&&url.pathname==='/scene.js'){res.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8','Cache-Control':'public, max-age=300'});return fs.createReadStream(path.join(PUBLIC_DIR,'scene.js')).pipe(res)}
     if(req.method==='GET'&&url.pathname==='/health'){return send(res,200,{ok:true,db:'sqlite',time:Date.now()})}
     if(req.method==='GET'&&url.pathname==='/auth/google/start'){
       if(!process.env.GOOGLE_CLIENT_ID||!process.env.GOOGLE_CLIENT_SECRET)return send(res,503,'Google sign-in is not configured on this server yet.');

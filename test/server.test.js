@@ -14,6 +14,7 @@ test('account, persistent character, movement, chat and session logout',async()=
   const child=spawn(process.execPath,[path.join(__dirname,'..','server.js')],{cwd:path.join(__dirname,'..'),env:{...process.env,PORT:String(port),DB_PATH:dbPath},stdio:['ignore','pipe','pipe']});let stderr='';child.stderr.on('data',x=>stderr+=x);
   try{
     await waitFor(url,child);
+    const scene=await fetch(url+'/scene.js');assert.equal(scene.status,200);assert.match(await scene.text(),/requestAnimationFrame\(render\)/);
     const unauthMove=await fetch(url+'/api/move',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({direction:'right'})});assert.equal(unauthMove.status,401);
     const reg=await fetch(url+'/api/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:'TestPlayer',password:'a-strong-test-password'})});
     assert.equal(reg.status,200,await reg.text());const cookie=reg.headers.get('set-cookie').match(/greed_session=([^;]+)/)[1],headers={cookie:`greed_session=${cookie}`};
@@ -46,6 +47,7 @@ test('browser client inline JavaScript parses',()=>{
   const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
   assert.ok(scripts.length>0);
   for(const match of scripts)new vm.Script(match[1]);
+  new vm.Script(fs.readFileSync(path.join(__dirname,'..','public','scene.js'),'utf8'));
 });
 
 test('existing character table receives coordinate migration at startup',async()=>{
