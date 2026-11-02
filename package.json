@@ -1,0 +1,12 @@
+{
+  "name": "greed-shaping-world-online",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A small server-authoritative, persistent browser RPG prototype.",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=24.0.0" }
+}
